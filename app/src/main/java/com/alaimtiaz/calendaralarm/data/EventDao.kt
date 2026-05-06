@@ -21,6 +21,45 @@ interface EventDao {
     """)
     fun observeUpcoming(now: Long, limit: Int = 200): Flow<List<EventEntity>>
 
+    /**
+     * Past events (already passed): newest first.
+     */
+    @Query("""
+        SELECT * FROM events
+        WHERE startTime < :now
+        ORDER BY startTime DESC
+        LIMIT :limit
+    """)
+    fun observePast(now: Long, limit: Int = 500): Flow<List<EventEntity>>
+
+    /**
+     * Search upcoming events by title, description, or location.
+     */
+    @Query("""
+        SELECT * FROM events
+        WHERE startTime >= :now
+        AND (title LIKE '%' || :query || '%'
+             OR description LIKE '%' || :query || '%'
+             OR location LIKE '%' || :query || '%')
+        ORDER BY startTime ASC
+        LIMIT :limit
+    """)
+    fun observeUpcomingSearch(now: Long, query: String, limit: Int = 200): Flow<List<EventEntity>>
+
+    /**
+     * Search past events by title, description, or location.
+     */
+    @Query("""
+        SELECT * FROM events
+        WHERE startTime < :now
+        AND (title LIKE '%' || :query || '%'
+             OR description LIKE '%' || :query || '%'
+             OR location LIKE '%' || :query || '%')
+        ORDER BY startTime DESC
+        LIMIT :limit
+    """)
+    fun observePastSearch(now: Long, query: String, limit: Int = 500): Flow<List<EventEntity>>
+
     @Query("SELECT * FROM events WHERE id = :id")
     suspend fun getById(id: Long): EventEntity?
 
