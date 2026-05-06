@@ -11,6 +11,18 @@ class EventsRepository(db: AppDatabase) {
         return dao.observeUpcoming(System.currentTimeMillis())
     }
 
+    fun observePast(): Flow<List<EventEntity>> {
+        return dao.observePast(System.currentTimeMillis())
+    }
+
+    fun observeUpcomingSearch(query: String): Flow<List<EventEntity>> {
+        return dao.observeUpcomingSearch(System.currentTimeMillis(), query)
+    }
+
+    fun observePastSearch(query: String): Flow<List<EventEntity>> {
+        return dao.observePastSearch(System.currentTimeMillis(), query)
+    }
+
     suspend fun getById(id: Long): EventEntity? = dao.getById(id)
 
     suspend fun getActiveUpcoming(): List<EventEntity> {
