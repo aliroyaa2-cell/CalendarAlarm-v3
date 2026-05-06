@@ -11,9 +11,9 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "events",
     indices = [
-        Index("external_id", "external_calendar_id", unique = true),
-        Index("start_time"),
-        Index("external_calendar_id")
+        Index("externalId", "externalCalendarId", unique = true),
+        Index("startTime"),
+        Index("externalCalendarId")
     ]
 )
 data class EventEntity(
