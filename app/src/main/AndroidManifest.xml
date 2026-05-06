@@ -44,25 +44,6 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"
         tools:ignore="ProtectedPermissions" />
 
-    <!-- ━━━━━━━━━━ Package Visibility (Android 11+) ━━━━━━━━━━ -->
-    <!-- Required to discover calendar apps that can open event URIs -->
-    <queries>
-        <!-- Calendar event URIs (Google Calendar, Samsung Calendar, etc.) -->
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="content" android:host="com.android.calendar" />
-        </intent>
-        <!-- Generic calendar event view -->
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:mimeType="vnd.android.cursor.item/event" />
-        </intent>
-        <!-- Direct package mention (most calendar apps) -->
-        <package android:name="com.google.android.calendar" />
-        <package android:name="com.samsung.android.calendar" />
-        <package android:name="com.microsoft.office.outlook" />
-    </queries>
-
     <application
         android:name=".CalendarAlarmApplication"
         android:allowBackup="true"
