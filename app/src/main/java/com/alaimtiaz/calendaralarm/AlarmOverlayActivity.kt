@@ -3,6 +3,8 @@ package com.alaimtiaz.calendaralarm
 import android.app.KeyguardManager
 import android.content.ContentUris
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
@@ -130,11 +132,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
         wakeLock = null
     }
 
-    /**
-     * Robust event lookup:
-     *   1. Try by primary id (works when alarm was scheduled recently)
-     *   2. Fallback to externalId (survives DB re-inserts during periodic sync)
-     */
     private fun loadEvent() {
         lifecycleScope.launch {
             val e = withContext(Dispatchers.IO) {
@@ -154,7 +151,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
                     found = dao.getByExternalIdAny(externalIdHint!!)
                     if (found != null) {
                         Log.d(TAG, "Event recovered via externalId=$externalIdHint id=${found.id}")
-                        // Update our local eventId so dismiss/snooze use the correct row
                         eventId = found.id
                     } else {
                         Log.w(TAG, "Event also not found by externalId=$externalIdHint")
@@ -249,6 +245,17 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Open the event in any installed calendar app, except ours.
+     *
+     * Strategy:
+     *   1. Build event URI
+     *   2. Query all apps that can handle it
+     *   3. Filter out our own app
+     *   4. Prefer Google-owned calendar app if found
+     *   5. If multiple eligible apps remain → show chooser (user picks once)
+     *   6. If no app found → show toast
+     */
     private fun openSourceCalendar() {
         val e = event ?: run {
             Toast.makeText(this, "تعذّر تحميل بيانات الحدث", Toast.LENGTH_SHORT).show()
@@ -256,101 +263,87 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
 
         val externalEventId = e.externalId.substringBefore("_").toLongOrNull()
-        Log.d(TAG, "openSourceCalendar: eventId=$eventId externalEventId=$externalEventId source=${e.source}")
-
-        // Strategy 1: Google Calendar with explicit package
-        if (externalEventId != null) {
-            try {
-                val uri = ContentUris.withAppendedId(
-                    CalendarContract.Events.CONTENT_URI,
-                    externalEventId
-                )
-                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                    setPackage("com.google.android.calendar")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivity(intent)
-                    Log.d(TAG, "Opened via Google Calendar (Strategy 1)")
-                    stopAlarmEffects()
-                    finishAndRemoveTask()
-                    return
-                }
-            } catch (ex: Exception) {
-                Log.w(TAG, "Strategy 1 threw exception", ex)
-            }
+        if (externalEventId == null) {
+            Log.w(TAG, "openSourceCalendar: no parsable externalEventId")
+            Toast.makeText(this, "معرّف الحدث غير صالح", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        // Strategy 2: Generic ACTION_VIEW
-        if (externalEventId != null) {
-            try {
-                val uri = ContentUris.withAppendedId(
-                    CalendarContract.Events.CONTENT_URI,
-                    externalEventId
+        val uri = ContentUris.withAppendedId(
+            CalendarContract.Events.CONTENT_URI,
+            externalEventId
+        )
+        val baseIntent = Intent(Intent.ACTION_VIEW, uri)
+
+        // Find all apps that can handle this URI
+        val pm = packageManager
+        @Suppress("DEPRECATION")
+        val resolved: List<ResolveInfo> =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(
+                    baseIntent,
+                    PackageManager.ResolveInfoFlags.of(0L)
                 )
-                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivity(intent)
-                    Log.d(TAG, "Opened via generic ACTION_VIEW (Strategy 2)")
-                    stopAlarmEffects()
-                    finishAndRemoveTask()
-                    return
-                }
-            } catch (ex: Exception) {
-                Log.w(TAG, "Strategy 2 threw exception", ex)
+            } else {
+                pm.queryIntentActivities(baseIntent, 0)
             }
+
+        Log.d(TAG, "Found ${resolved.size} apps that can handle calendar event URI:")
+        resolved.forEach {
+            Log.d(TAG, "  → ${it.activityInfo.packageName} / ${it.activityInfo.name}")
         }
 
-        // Strategy 3: Google Calendar at today's date
+        // Filter out our own app
+        val ourPackage = packageName
+        val candidates = resolved.filter { it.activityInfo.packageName != ourPackage }
+
+        if (candidates.isEmpty()) {
+            Log.w(TAG, "No eligible calendar app installed (other than ours)")
+            Toast.makeText(
+                this,
+                "لم يتم العثور على تطبيق تقويم مناسب",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Prefer a Google-owned calendar app if exactly one matches
+        val googleCalendar = candidates.firstOrNull {
+            val pkg = it.activityInfo.packageName.lowercase()
+            pkg.contains("google") && pkg.contains("calendar")
+        }
+
         try {
-            val todayBeginMillis = System.currentTimeMillis()
-            val timeUri = Uri.parse("content://com.android.calendar/time/$todayBeginMillis")
-            val intent = Intent(Intent.ACTION_VIEW, timeUri).apply {
-                setPackage("com.google.android.calendar")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            if (intent.resolveActivity(packageManager) != null) {
+            if (googleCalendar != null) {
+                // Direct launch into Google Calendar
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage(googleCalendar.activityInfo.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 startActivity(intent)
-                Toast.makeText(this, "افتح الحدث من Google Calendar", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Opened Google Calendar at today (Strategy 3)")
-                stopAlarmEffects()
-                finishAndRemoveTask()
-                return
+                Log.d(TAG, "Opened via Google Calendar: ${googleCalendar.activityInfo.packageName}")
+            } else if (candidates.size == 1) {
+                // Only one calendar app — open directly
+                val cand = candidates[0]
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage(cand.activityInfo.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                Log.d(TAG, "Opened via single candidate: ${cand.activityInfo.packageName}")
+            } else {
+                // Multiple candidates — let user pick (Android remembers the choice)
+                val chooser = Intent.createChooser(baseIntent, "افتح الحدث بـ:").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(chooser)
+                Log.d(TAG, "Showed chooser with ${candidates.size} candidates")
             }
-        } catch (ex: Exception) {
-            Log.w(TAG, "Strategy 3 threw exception", ex)
-        }
-
-        // Strategy 4: Launch Google Calendar via launcher
-        try {
-            val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.calendar")
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
-                Toast.makeText(this, "افتح الحدث من Google Calendar", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Opened Google Calendar launcher (Strategy 4)")
-                stopAlarmEffects()
-                finishAndRemoveTask()
-                return
-            }
-        } catch (ex: Exception) {
-            Log.w(TAG, "Strategy 4 threw exception", ex)
-        }
-
-        // Final fallback: our app
-        try {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            startActivity(intent)
-            Toast.makeText(this, "تعذّر فتح Google Calendar", Toast.LENGTH_LONG).show()
             stopAlarmEffects()
             finishAndRemoveTask()
         } catch (ex: Exception) {
-            Log.e(TAG, "All open strategies failed", ex)
-            Toast.makeText(this, "تعذّر فتح أي تطبيق تقويم", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Failed to launch calendar app", ex)
+            Toast.makeText(this, "تعذّر فتح تطبيق التقويم", Toast.LENGTH_LONG).show()
         }
     }
 
