@@ -12,7 +12,8 @@ import com.alaimtiaz.calendaralarm.databinding.ItemEventBinding
 import com.alaimtiaz.calendaralarm.util.DateUtils
 
 class EventsAdapter(
-    private val context: Context
+    private val context: Context,
+    private val onItemClick: ((EventEntity) -> Unit)? = null
 ) : ListAdapter<EventEntity, EventsAdapter.VH>(DIFF) {
 
     fun submit(list: List<EventEntity>) = submitList(list)
@@ -47,6 +48,9 @@ class EventsAdapter(
                 b.tvLocation.visibility = android.view.View.VISIBLE
                 b.tvLocation.text = "📍 ${e.location}"
             } else b.tvLocation.visibility = android.view.View.GONE
+
+            // Forward click to MainActivity
+            b.root.setOnClickListener { onItemClick?.invoke(e) }
         }
     }
 
