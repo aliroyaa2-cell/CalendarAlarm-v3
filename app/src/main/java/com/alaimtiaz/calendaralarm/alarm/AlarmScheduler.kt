@@ -15,9 +15,11 @@ import com.alaimtiaz.calendaralarm.repository.EventsRepository
 
 /**
  * Schedules and cancels alarms via AlarmManager.
+ * Uses setAlarmClock() for max precision (bypasses Doze on Samsung One UI).
  *
- * Uses setAlarmClock() — the only method that bypasses Doze Mode reliably and gives
- * exact-time guarantees on Samsung One UI 8 and stock Android 16.
+ * We pass BOTH the row id AND the externalId so AlarmOverlayActivity can
+ * recover the event even if Room re-inserts it with a new auto-generated id
+ * during a sync.
  */
 class AlarmScheduler(private val context: Context) {
 
@@ -28,30 +30,21 @@ class AlarmScheduler(private val context: Context) {
     private val alarmsRepo = AlarmsRepository(db)
     private val eventsRepo = EventsRepository(db)
 
-    /**
-     * Whether we currently have permission to schedule exact alarms.
-     * On Android 12+ users must grant SCHEDULE_EXACT_ALARM via Settings.
-     */
     fun canScheduleExact(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else true
     }
 
-    /**
-     * Schedule the alarm for one event.
-     * @param triggerOverride if non-null, use this trigger time (for snooze).
-     */
     suspend fun scheduleEvent(event: EventEntity, triggerOverride: Long? = null): Boolean {
         if (!event.isAlarmEnabled) {
-            cancelEvent(event.id)
+            cancelEvent(event.id, event.externalId)
             return false
         }
         val triggerAt = triggerOverride
             ?: (event.startTime - event.notifyMinutesBefore * 60_000L)
 
         if (triggerAt <= System.currentTimeMillis()) {
-            // Past — skip
             return false
         }
 
@@ -60,7 +53,7 @@ class AlarmScheduler(private val context: Context) {
             return false
         }
 
-        val pi = pendingIntentFor(event.id)
+        val pi = pendingIntentFor(event.id, event.externalId)
         val showIntent = showIntentFor()
 
         try {
@@ -69,7 +62,7 @@ class AlarmScheduler(private val context: Context) {
                 pi
             )
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException while scheduling alarm for event ${event.id}", e)
+            Log.e(TAG, "SecurityException scheduling alarm for event ${event.id}", e)
             return false
         }
 
@@ -83,24 +76,17 @@ class AlarmScheduler(private val context: Context) {
             )
         )
 
-        Log.d(TAG, "Scheduled alarm for event ${event.id} ('${event.title}') at $triggerAt")
+        Log.d(TAG, "Scheduled alarm event=${event.id} ext=${event.externalId} ('${event.title}') at $triggerAt")
         return true
     }
 
-    /**
-     * Cancel any alarm for the given event id.
-     */
-    suspend fun cancelEvent(eventId: Long) {
-        val pi = pendingIntentFor(eventId)
+    suspend fun cancelEvent(eventId: Long, externalId: String? = null) {
+        val pi = pendingIntentFor(eventId, externalId ?: "")
         alarmManager.cancel(pi)
         alarmsRepo.deleteByEventId(eventId)
         Log.d(TAG, "Canceled alarm for event $eventId")
     }
 
-    /**
-     * Re-schedule every active future alarm.
-     * Called from BootReceiver, SyncService and the main activity to ensure consistency.
-     */
     suspend fun rescheduleAll(): Int {
         alarmsRepo.deleteExpired()
         val events = eventsRepo.getActiveUpcoming()
@@ -111,22 +97,20 @@ class AlarmScheduler(private val context: Context) {
         return count
     }
 
-    /**
-     * Cancel all alarms (used when user disables all calendars).
-     */
     suspend fun cancelAll() {
         val all = alarmsRepo.getAll()
         for (a in all) {
-            val pi = pendingIntentFor(a.eventId)
+            val pi = pendingIntentFor(a.eventId, "")
             alarmManager.cancel(pi)
         }
         alarmsRepo.clearAll()
     }
 
-    private fun pendingIntentFor(eventId: Long): PendingIntent {
+    private fun pendingIntentFor(eventId: Long, externalId: String): PendingIntent {
         val intent = Intent(context, EventAlarmReceiver::class.java).apply {
             action = ACTION_FIRE
             putExtra(EXTRA_EVENT_ID, eventId)
+            putExtra(EXTRA_EXTERNAL_ID, externalId)
         }
         return PendingIntent.getBroadcast(
             context,
@@ -152,5 +136,6 @@ class AlarmScheduler(private val context: Context) {
         private const val TAG = "AlarmScheduler"
         const val ACTION_FIRE = "com.alaimtiaz.calendaralarm.ACTION_FIRE_ALARM"
         const val EXTRA_EVENT_ID = "extra_event_id"
+        const val EXTRA_EXTERNAL_ID = "extra_external_id"
     }
 }
