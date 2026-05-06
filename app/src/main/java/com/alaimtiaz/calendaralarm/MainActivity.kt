@@ -2,6 +2,7 @@ package com.alaimtiaz.calendaralarm
 
 import android.content.ContentUris
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.util.Log
@@ -185,32 +186,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Open Samsung Calendar app for searching deep archives (older than 1 year).
+     * Open any installed calendar app at today's date.
+     * Uses the generic CalendarContract URI which any calendar app can handle —
+     * Android prompts the user to pick one (Samsung, Google, etc.) the first time
+     * and remembers the choice.
      */
     private fun openSamsungCalendar() {
-        // Try Samsung Calendar first
+        val now = System.currentTimeMillis()
+        val timeUri = Uri.parse("content://com.android.calendar/time/$now")
+
         try {
-            val launcher = packageManager.getLaunchIntentForPackage("com.samsung.android.calendar")
-            if (launcher != null) {
-                launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(launcher)
-                return
+            val intent = Intent(Intent.ACTION_VIEW, timeUri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            startActivity(intent)
+            Log.d(TAG, "openSamsungCalendar: launched ACTION_VIEW on time URI")
+            return
         } catch (ex: Exception) {
-            Log.w(TAG, "Samsung Calendar launch failed", ex)
+            Log.w(TAG, "openSamsungCalendar: time URI failed", ex)
         }
 
-        // Fallback to Google Calendar
-        try {
-            val launcher = packageManager.getLaunchIntentForPackage("com.google.android.calendar")
-            if (launcher != null) {
-                launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(launcher)
-                Toast.makeText(this, "افتح تقويم Google للبحث", Toast.LENGTH_SHORT).show()
-                return
+        // Fallback: any launchable calendar app (try Samsung first, then Google)
+        val candidates = listOf(
+            "com.samsung.android.calendar",
+            "com.google.android.calendar"
+        )
+        for (pkg in candidates) {
+            try {
+                val launcher = packageManager.getLaunchIntentForPackage(pkg)
+                if (launcher != null) {
+                    launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(launcher)
+                    Log.d(TAG, "openSamsungCalendar: launched $pkg via launcher")
+                    return
+                }
+            } catch (ex: Exception) {
+                Log.w(TAG, "Launcher fallback for $pkg failed", ex)
             }
-        } catch (ex: Exception) {
-            Log.w(TAG, "Google Calendar launch failed", ex)
         }
 
         Toast.makeText(this, "تعذّر فتح تطبيق التقويم", Toast.LENGTH_SHORT).show()
