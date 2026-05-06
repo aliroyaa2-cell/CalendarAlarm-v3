@@ -1,170 +1,156 @@
 package com.alaimtiaz.calendaralarm.repository
 
-import android.content.ContentResolver
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.CalendarContract
-import android.util.Log
-import com.alaimtiaz.calendaralarm.alarm.AlarmScheduler
+import androidx.core.content.ContextCompat
 import com.alaimtiaz.calendaralarm.data.AppDatabase
 import com.alaimtiaz.calendaralarm.data.EventEntity
 import com.alaimtiaz.calendaralarm.data.SourceCalendarEntity
-import com.alaimtiaz.calendaralarm.util.PreferencesHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Reads available calendars from the device CalendarContract,
- * persists which ones the user enabled, and syncs their events
- * into our Room database.
- *
- * Window: 365 days backward + 365 days forward (for past/future tabs and search).
+ * Reads calendar sources and events from the system Calendar Provider
+ * and bridges them into our local Room database.
  */
-class SourceCalendarsRepository(private val context: Context) {
-
-    private val db = AppDatabase.getInstance(context)
+class SourceCalendarsRepository(
+    private val context: Context,
+    db: AppDatabase
+) {
     private val sourceDao = db.sourceCalendarDao()
     private val eventDao = db.eventDao()
-    private val prefs = PreferencesHelper(context)
 
-    suspend fun loadAvailableCalendars(): List<SourceCalendarEntity> = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val list = mutableListOf<SourceCalendarEntity>()
-        val projection = arrayOf(
-            CalendarContract.Calendars._ID,
-            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-            CalendarContract.Calendars.ACCOUNT_NAME,
-            CalendarContract.Calendars.ACCOUNT_TYPE,
-            CalendarContract.Calendars.CALENDAR_COLOR,
-            CalendarContract.Calendars.OWNER_ACCOUNT
-        )
-        try {
-            resolver.query(
-                CalendarContract.Calendars.CONTENT_URI,
-                projection,
-                null, null, null
-            )?.use { cur ->
-                while (cur.moveToNext()) {
-                    val id = cur.getLong(0)
-                    val displayName = cur.getString(1) ?: "(بلا اسم)"
-                    val accountName = cur.getString(2) ?: ""
-                    val accountType = cur.getString(3) ?: ""
-                    val color = cur.getInt(4)
-                    val owner = cur.getString(5) ?: accountName
+    fun observeAll(): Flow<List<SourceCalendarEntity>> = sourceDao.observeAll()
 
-                    val source = when {
-                        accountType.contains("google", ignoreCase = true) -> EventEntity.SOURCE_GOOGLE
-                        accountType.contains("samsung", ignoreCase = true) -> EventEntity.SOURCE_SAMSUNG
-                        accountType.contains("outlook", ignoreCase = true) ||
-                            accountType.contains("eas", ignoreCase = true) -> EventEntity.SOURCE_OUTLOOK
-                        else -> "local"
-                    }
-
-                    val existing = sourceDao.getById(id)
-                    val enabled = existing?.isEnabled ?: false
-
-                    list.add(
-                        SourceCalendarEntity(
-                            id = id,
-                            displayName = displayName,
-                            accountName = accountName,
-                            accountType = accountType,
-                            ownerAccount = owner,
-                            source = source,
-                            color = color,
-                            isEnabled = enabled
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load calendars from CalendarContract", e)
-        }
-
-        // Persist (preserve user's enable/disable choices)
-        sourceDao.upsertAll(list)
-        list
-    }
-
-    suspend fun setEnabled(calendarId: Long, enabled: Boolean) = withContext(Dispatchers.IO) {
-        sourceDao.setEnabled(calendarId, enabled)
-        if (!enabled) {
-            // Remove this calendar's events from local DB and cancel their alarms
-            val events = eventDao.getActiveUpcoming(0)
-                .filter { it.externalCalendarId == calendarId }
-            val scheduler = AlarmScheduler(context)
-            events.forEach { scheduler.cancelEvent(it.id, it.externalId) }
-            eventDao.deleteByCalendarIds(listOf(calendarId))
-        }
-    }
-
-    suspend fun getEnabledCalendars(): List<SourceCalendarEntity> = withContext(Dispatchers.IO) {
-        sourceDao.getEnabled()
+    fun hasCalendarPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     /**
-     * Sync all enabled calendars: read events from Calendar Provider into local DB,
-     * then schedule alarms for any new/updated upcoming events.
+     * Read all calendars currently registered with CalendarContract,
+     * preserve user's enabled selections, and persist into Room.
      */
-    suspend fun syncEnabledCalendars(
-        daysBackward: Int = 365,
-        daysForward: Int = 365
-    ): Int = withContext(Dispatchers.IO) {
-        val enabled = sourceDao.getEnabled()
-        if (enabled.isEmpty()) return@withContext 0
+    suspend fun refreshSourceCalendars(): List<SourceCalendarEntity> {
+        if (!hasCalendarPermission()) return emptyList()
 
-        val now = System.currentTimeMillis()
-        val rangeStart = now - daysBackward * 24L * 60L * 60L * 1000L
-        val rangeEnd = now + daysForward * 24L * 60L * 60L * 1000L
+        val previous = sourceDao.getAll().associateBy { it.id }
+        val fresh = readCalendarsFromProvider()
 
-        var totalSynced = 0
-        val scheduler = AlarmScheduler(context)
-        val defaultMinutesBefore = prefs.defaultNotifyMinutesBefore
-
-        for (cal in enabled) {
-            val fetched = readEventsForCalendar(
-                context.contentResolver,
-                cal,
-                rangeStart,
-                rangeEnd,
-                defaultMinutesBefore
-            )
-
-            // Replace this calendar's local events
-            val externalIds = fetched.map { it.externalId }
-            eventDao.deleteRemovedFromCalendar(cal.id, externalIds)
-
-            for (e in fetched) {
-                val existing = eventDao.getByExternalId(e.externalId, cal.id)
-                val toInsert = if (existing != null) {
-                    e.copy(
-                        id = existing.id,
-                        isAlarmEnabled = existing.isAlarmEnabled
-                    )
-                } else e
-
-                eventDao.insert(toInsert)
-
-                // Schedule alarm only for upcoming events
-                if (toInsert.startTime > now) {
-                    scheduler.scheduleEvent(toInsert)
-                }
-            }
-            totalSynced += fetched.size
+        // Carry over user's isEnabled and lastSyncedAt
+        val merged = fresh.map { incoming ->
+            val prev = previous[incoming.id]
+            if (prev != null) {
+                incoming.copy(
+                    isEnabled = prev.isEnabled,
+                    lastSyncedAt = prev.lastSyncedAt
+                )
+            } else incoming
         }
 
-        Log.d(TAG, "Synced $totalSynced events across ${enabled.size} calendars (range: -$daysBackward / +$daysForward days)")
-        totalSynced
+        sourceDao.insertOrReplaceAll(merged)
+        // Remove rows that are no longer present (account/calendar removed from device)
+        sourceDao.deleteRemoved(merged.map { it.id })
+        return merged
     }
 
-    private fun readEventsForCalendar(
-        resolver: ContentResolver,
-        cal: SourceCalendarEntity,
-        rangeStart: Long,
-        rangeEnd: Long,
-        defaultNotifyMinutesBefore: Int
-    ): List<EventEntity> {
-        val list = mutableListOf<EventEntity>()
+    private fun readCalendarsFromProvider(): List<SourceCalendarEntity> {
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.CALENDAR_COLOR,
+        )
+        val result = mutableListOf<SourceCalendarEntity>()
+        context.contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${CalendarContract.Calendars.ACCOUNT_TYPE} ASC"
+        )?.use { c ->
+            val idIdx = c.getColumnIndex(CalendarContract.Calendars._ID)
+            val accNameIdx = c.getColumnIndex(CalendarContract.Calendars.ACCOUNT_NAME)
+            val accTypeIdx = c.getColumnIndex(CalendarContract.Calendars.ACCOUNT_TYPE)
+            val displayIdx = c.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
+            val colorIdx = c.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
+            while (c.moveToNext()) {
+                result.add(
+                    SourceCalendarEntity(
+                        id = c.getLong(idIdx),
+                        accountName = c.getString(accNameIdx) ?: "",
+                        accountType = c.getString(accTypeIdx) ?: "",
+                        displayName = c.getString(displayIdx) ?: "Calendar",
+                        color = if (colorIdx >= 0) c.getInt(colorIdx) else 0,
+                        isEnabled = false
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    /**
+     * Sync events from all enabled source calendars.
+     * @param windowDays — number of days backward AND forward to sync (default 365 each side).
+     * @return list of events freshly written to Room.
+     */
+    suspend fun syncEnabledCalendars(windowDays: Int = 365): SyncResult {
+        if (!hasCalendarPermission()) return SyncResult(0, 0)
+
+        val enabled = sourceDao.getEnabled()
+        if (enabled.isEmpty()) {
+            return SyncResult(0, 0)
+        }
+
+        val now = System.currentTimeMillis()
+        val msPerDay = 24L * 60L * 60L * 1000L
+        val windowStart = now - windowDays * msPerDay
+        val windowEnd = now + windowDays * msPerDay
+
+        var inserted = 0
+        var updated = 0
+
+        for (calendar in enabled) {
+            val (writes, externalIds) = readAndStoreEventsFor(calendar, windowStart, windowEnd)
+            inserted += writes.first
+            updated += writes.second
+            eventDao.deleteRemovedFromCalendar(calendar.id, externalIds)
+        }
+
+        sourceDao.updateLastSync(enabled.map { it.id }, System.currentTimeMillis())
+        return SyncResult(inserted, updated)
+    }
+
+    /**
+     * Delete all events imported from the given calendar IDs.
+     * Used when user disables a calendar in the source picker.
+     */
+    suspend fun deleteEventsFromCalendars(calendarIds: List<Long>) {
+        if (calendarIds.isEmpty()) return
+        eventDao.deleteByCalendarIds(calendarIds)
+    }
+
+    private suspend fun readAndStoreEventsFor(
+        calendar: SourceCalendarEntity,
+        windowStart: Long,
+        windowEnd: Long
+    ): Pair<Pair<Int, Int>, List<String>> {
+        val source = EventEntity.sourceFromAccountType(calendar.accountType)
+        val externalIds = mutableListOf<String>()
+        val toInsert = mutableListOf<EventEntity>()
+        val toUpdate = mutableListOf<EventEntity>()
+
+        val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
+        ContentUris.appendId(builder, windowStart)
+        ContentUris.appendId(builder, windowEnd)
+        val uri = builder.build()
+
         val projection = arrayOf(
             CalendarContract.Instances.EVENT_ID,
             CalendarContract.Instances.TITLE,
@@ -172,61 +158,65 @@ class SourceCalendarsRepository(private val context: Context) {
             CalendarContract.Instances.EVENT_LOCATION,
             CalendarContract.Instances.BEGIN,
             CalendarContract.Instances.END,
-            CalendarContract.Instances.ALL_DAY
+            CalendarContract.Instances.ALL_DAY,
+            CalendarContract.Instances.RRULE,
+            CalendarContract.Instances.CALENDAR_ID
         )
 
-        val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
-        ContentUris.appendId(builder, rangeStart)
-        ContentUris.appendId(builder, rangeEnd)
-        val uri = builder.build()
+        context.contentResolver.query(
+            uri,
+            projection,
+            "${CalendarContract.Instances.CALENDAR_ID} = ?",
+            arrayOf(calendar.id.toString()),
+            "${CalendarContract.Instances.BEGIN} ASC"
+        )?.use { c ->
+            val idIdx = c.getColumnIndex(CalendarContract.Instances.EVENT_ID)
+            val titleIdx = c.getColumnIndex(CalendarContract.Instances.TITLE)
+            val descIdx = c.getColumnIndex(CalendarContract.Instances.DESCRIPTION)
+            val locIdx = c.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
+            val beginIdx = c.getColumnIndex(CalendarContract.Instances.BEGIN)
+            val endIdx = c.getColumnIndex(CalendarContract.Instances.END)
+            val allDayIdx = c.getColumnIndex(CalendarContract.Instances.ALL_DAY)
+            val rruleIdx = c.getColumnIndex(CalendarContract.Instances.RRULE)
 
-        val selection = "${CalendarContract.Instances.CALENDAR_ID} = ?"
-        val args = arrayOf(cal.id.toString())
+            while (c.moveToNext()) {
+                val eventId = c.getLong(idIdx).toString()
+                val begin = c.getLong(beginIdx)
 
-        try {
-            resolver.query(
-                uri,
-                projection,
-                selection,
-                args,
-                "${CalendarContract.Instances.BEGIN} ASC"
-            )?.use { cur ->
-                while (cur.moveToNext()) {
-                    val eventId = cur.getLong(0)
-                    val title = cur.getString(1) ?: "(بلا عنوان)"
-                    val desc = cur.getString(2)
-                    val loc = cur.getString(3)
-                    val begin = cur.getLong(4)
-                    val end = cur.getLong(5)
-                    val allDay = cur.getInt(6) == 1
+                val externalKey = if (c.isNull(rruleIdx)) eventId else "${eventId}_$begin"
+                externalIds.add(externalKey)
 
-                    list.add(
-                        EventEntity(
-                            id = 0L,
-                            externalId = "${eventId}_$begin",
-                            externalCalendarId = cal.id,
-                            calendarColor = cal.color,
-                            source = cal.source,
-                            accountName = cal.accountName,
-                            title = title,
-                            description = desc,
-                            location = loc,
-                            startTime = begin,
-                            endTime = end,
-                            isAllDay = allDay,
-                            notifyMinutesBefore = defaultNotifyMinutesBefore,
-                            isAlarmEnabled = true
-                        )
-                    )
-                }
+                val existing = eventDao.getByExternalId(externalKey, calendar.id)
+                val entity = EventEntity(
+                    id = existing?.id ?: 0L,
+                    externalId = externalKey,
+                    externalCalendarId = calendar.id,
+                    source = source,
+                    accountName = calendar.accountName,
+                    title = c.getString(titleIdx) ?: "(بدون عنوان)",
+                    description = c.getString(descIdx),
+                    location = c.getString(locIdx),
+                    startTime = begin,
+                    endTime = if (!c.isNull(endIdx)) c.getLong(endIdx) else null,
+                    isAllDay = c.getInt(allDayIdx) == 1,
+                    recurrenceRule = c.getString(rruleIdx),
+                    calendarColor = calendar.color,
+                    isAlarmEnabled = existing?.isAlarmEnabled ?: true,
+                    notifyMinutesBefore = existing?.notifyMinutesBefore ?: 0,
+                    createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
+                if (existing == null) toInsert.add(entity) else toUpdate.add(entity)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read events for calendar ${cal.id}", e)
         }
-        return list
+
+        if (toInsert.isNotEmpty()) eventDao.insertAll(toInsert)
+        toUpdate.forEach { eventDao.update(it) }
+
+        return Pair(Pair(toInsert.size, toUpdate.size), externalIds)
     }
 
-    companion object {
-        private const val TAG = "SourceCalendarsRepo"
+    data class SyncResult(val inserted: Int, val updated: Int) {
+        val total: Int get() = inserted + updated
     }
 }
