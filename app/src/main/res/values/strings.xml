@@ -36,6 +36,13 @@
     <string name="menu_settings">الإعدادات</string>
     <string name="menu_sync_now">مزامنة الآن</string>
 
+    <!-- Tabs and search (NEW) -->
+    <string name="tab_upcoming">📅  القادمة</string>
+    <string name="tab_past">🕐  السابقة</string>
+    <string name="search_hint">ابحث في الأحداث...</string>
+    <string name="btn_search_samsung">ابحث في تقويم Samsung</string>
+    <string name="btn_menu_desc">القائمة</string>
+
     <!-- Source Calendars -->
     <string name="source_header_hint">اختر التقاويم اللي تبغى تستورد منها أحداثها</string>
     <string name="source_no_calendars">لا توجد تقاويم على الجهاز</string>
