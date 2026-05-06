@@ -26,7 +26,6 @@ import com.alaimtiaz.calendaralarm.alarm.AlarmScheduler
 import com.alaimtiaz.calendaralarm.data.AppDatabase
 import com.alaimtiaz.calendaralarm.data.EventEntity
 import com.alaimtiaz.calendaralarm.databinding.ActivityAlarmOverlayBinding
-import com.alaimtiaz.calendaralarm.repository.EventsRepository
 import com.alaimtiaz.calendaralarm.util.DateUtils
 import com.alaimtiaz.calendaralarm.util.PreferencesHelper
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -47,6 +46,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
     private var vibrator: Vibrator? = null
     private var event: EventEntity? = null
     private var eventId: Long = -1L
+    private var externalIdHint: String? = null
     private var clockTickRunnable: Runnable? = null
     private var phase2Runnable: Runnable? = null
     private val clockFormat = SimpleDateFormat("h:mm:ss", Locale("ar"))
@@ -61,9 +61,12 @@ class AlarmOverlayActivity : AppCompatActivity() {
 
         prefs = PreferencesHelper(applicationContext)
         eventId = intent.getLongExtra(EXTRA_EVENT_ID, -1L)
+        externalIdHint = intent.getStringExtra(EXTRA_EXTERNAL_ID)
 
-        if (eventId == -1L) {
-            Log.w(TAG, "Started without event id — finishing")
+        Log.d(TAG, "onCreate: eventId=$eventId externalIdHint=$externalIdHint")
+
+        if (eventId == -1L && externalIdHint.isNullOrBlank()) {
+            Log.w(TAG, "Started without event id or externalId — finishing")
             finish()
             return
         }
@@ -127,10 +130,37 @@ class AlarmOverlayActivity : AppCompatActivity() {
         wakeLock = null
     }
 
+    /**
+     * Robust event lookup:
+     *   1. Try by primary id (works when alarm was scheduled recently)
+     *   2. Fallback to externalId (survives DB re-inserts during periodic sync)
+     */
     private fun loadEvent() {
         lifecycleScope.launch {
             val e = withContext(Dispatchers.IO) {
-                EventsRepository(AppDatabase.getInstance(applicationContext)).getById(eventId)
+                val dao = AppDatabase.getInstance(applicationContext).eventDao()
+                var found: EventEntity? = null
+
+                if (eventId > 0L) {
+                    found = dao.getById(eventId)
+                    if (found != null) {
+                        Log.d(TAG, "Event loaded by id=$eventId")
+                    } else {
+                        Log.w(TAG, "Event id=$eventId not in DB (likely re-inserted by sync)")
+                    }
+                }
+
+                if (found == null && !externalIdHint.isNullOrBlank()) {
+                    found = dao.getByExternalIdAny(externalIdHint!!)
+                    if (found != null) {
+                        Log.d(TAG, "Event recovered via externalId=$externalIdHint id=${found.id}")
+                        // Update our local eventId so dismiss/snooze use the correct row
+                        eventId = found.id
+                    } else {
+                        Log.w(TAG, "Event also not found by externalId=$externalIdHint")
+                    }
+                }
+                found
             }
             event = e
             renderEvent(e)
@@ -193,7 +223,10 @@ class AlarmOverlayActivity : AppCompatActivity() {
     }
 
     private fun snooze(minutes: Long) {
-        val e = event ?: return
+        val e = event ?: run {
+            Toast.makeText(this, "تعذّر التأجيل — بيانات الحدث غير متوفرة", Toast.LENGTH_SHORT).show()
+            return
+        }
         val triggerAt = System.currentTimeMillis() + minutes * 60_000L
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
@@ -207,21 +240,15 @@ class AlarmOverlayActivity : AppCompatActivity() {
     private fun dismissAlarm() {
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
-                AlarmScheduler(applicationContext).cancelEvent(eventId)
+                if (eventId > 0L) {
+                    AlarmScheduler(applicationContext).cancelEvent(eventId, externalIdHint)
+                }
             }
             stopAlarmEffects()
             finishAndRemoveTask()
         }
     }
 
-    /**
-     * Open the event in its native calendar app.
-     * Tries 3 strategies in order:
-     *   1. Direct event URI to Google Calendar (preferred)
-     *   2. Generic ACTION_VIEW with event URI (any calendar app picks it)
-     *   3. Fallback: open Google Calendar app at today's date
-     *   4. Final fallback: open our own MainActivity
-     */
     private fun openSourceCalendar() {
         val e = event ?: run {
             Toast.makeText(this, "تعذّر تحميل بيانات الحدث", Toast.LENGTH_SHORT).show()
@@ -231,7 +258,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
         val externalEventId = e.externalId.substringBefore("_").toLongOrNull()
         Log.d(TAG, "openSourceCalendar: eventId=$eventId externalEventId=$externalEventId source=${e.source}")
 
-        // Strategy 1: Try Google Calendar with explicit package name
+        // Strategy 1: Google Calendar with explicit package
         if (externalEventId != null) {
             try {
                 val uri = ContentUris.withAppendedId(
@@ -244,19 +271,17 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 }
                 if (intent.resolveActivity(packageManager) != null) {
                     startActivity(intent)
-                    Log.d(TAG, "Opened event via Google Calendar (Strategy 1)")
+                    Log.d(TAG, "Opened via Google Calendar (Strategy 1)")
                     stopAlarmEffects()
                     finishAndRemoveTask()
                     return
-                } else {
-                    Log.w(TAG, "Strategy 1 failed: Google Calendar not installed or won't handle URI")
                 }
             } catch (ex: Exception) {
                 Log.w(TAG, "Strategy 1 threw exception", ex)
             }
         }
 
-        // Strategy 2: Generic event URI — any calendar app
+        // Strategy 2: Generic ACTION_VIEW
         if (externalEventId != null) {
             try {
                 val uri = ContentUris.withAppendedId(
@@ -268,19 +293,17 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 }
                 if (intent.resolveActivity(packageManager) != null) {
                     startActivity(intent)
-                    Log.d(TAG, "Opened event via generic ACTION_VIEW (Strategy 2)")
+                    Log.d(TAG, "Opened via generic ACTION_VIEW (Strategy 2)")
                     stopAlarmEffects()
                     finishAndRemoveTask()
                     return
-                } else {
-                    Log.w(TAG, "Strategy 2 failed: no app handles event URI")
                 }
             } catch (ex: Exception) {
                 Log.w(TAG, "Strategy 2 threw exception", ex)
             }
         }
 
-        // Strategy 3: Open Google Calendar app at today's date
+        // Strategy 3: Google Calendar at today's date
         try {
             val todayBeginMillis = System.currentTimeMillis()
             val timeUri = Uri.parse("content://com.android.calendar/time/$todayBeginMillis")
@@ -295,14 +318,12 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 stopAlarmEffects()
                 finishAndRemoveTask()
                 return
-            } else {
-                Log.w(TAG, "Strategy 3 failed: Google Calendar not installed")
             }
         } catch (ex: Exception) {
             Log.w(TAG, "Strategy 3 threw exception", ex)
         }
 
-        // Strategy 4: Try launching Google Calendar via package launcher
+        // Strategy 4: Launch Google Calendar via launcher
         try {
             val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.calendar")
             if (launchIntent != null) {
@@ -318,7 +339,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
             Log.w(TAG, "Strategy 4 threw exception", ex)
         }
 
-        // Final fallback: our own app
+        // Final fallback: our app
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -419,5 +440,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "AlarmOverlay"
         const val EXTRA_EVENT_ID = "extra_event_id"
+        const val EXTRA_EXTERNAL_ID = "extra_external_id"
     }
 }
