@@ -70,14 +70,14 @@ class SourceCalendarsAdapter(
         }
     }
 
-    inner class HeaderVH(private val b: ItemAccountHeaderBinding) :
+    private inner class HeaderVH(private val b: ItemAccountHeaderBinding) :
         RecyclerView.ViewHolder(b.root) {
         fun bind(h: Row.Header) {
             b.tvHeader.text = h.displayLabel
         }
     }
 
-    inner class ItemVH(private val b: ItemSourceCalendarBinding) :
+    private inner class ItemVH(private val b: ItemSourceCalendarBinding) :
         RecyclerView.ViewHolder(b.root) {
         fun bind(cal: SourceCalendarEntity) {
             b.tvName.text = cal.displayName
