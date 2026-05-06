@@ -19,7 +19,6 @@ import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.alaimtiaz.calendaralarm.alarm.AlarmScheduler
 import com.alaimtiaz.calendaralarm.data.AppDatabase
@@ -36,28 +35,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Full-screen alarm activity shown over the lock screen.
- *
- * SCREEN BEHAVIOR (Phase 1 / Phase 2):
- *
- *  Phase 1 (first ~8 seconds): we FORCE the screen on with multiple flags +
- *  a SCREEN_BRIGHT_WAKE_LOCK + setShowWhenLocked / setTurnScreenOn.
- *  This guarantees Samsung One UI 8 wakes the device and shows our UI on top
- *  of the lock screen.
- *
- *  Phase 2 (after ~8 seconds): we RELEASE the wake-lock and CLEAR
- *  FLAG_KEEP_SCREEN_ON. The system can now turn the screen off naturally
- *  with the device's normal timeout (e.g. 30 seconds). The Activity itself
- *  remains in memory — no finish() — so when the user wakes the phone again
- *  they see the alarm still pending.
- *
- *  We never call finish() automatically. Only Dismiss / Snooze / Edit
- *  end the Activity.
- *
- *  We never use PowerManager.ON_AFTER_RELEASE (that flag adds an extra delay
- *  after release which is the bug the previous attempts hit).
- */
 class AlarmOverlayActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAlarmOverlayBinding
@@ -75,8 +52,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // ───── Phase 1: FORCE screen on + show over lock ─────
         applyPhase1WindowFlags()
 
         binding = ActivityAlarmOverlayBinding.inflate(layoutInflater)
@@ -94,18 +69,13 @@ class AlarmOverlayActivity : AppCompatActivity() {
         acquireWakeLockPhase1()
         scheduleClockTicks()
         loadEvent()
-        playAlarmSound()
-        startVibration()
+        playAlarmSoundOnce()
+        startShortVibration()
         wireButtons()
         scheduleEnterPhase2()
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Phase 1: forced wakeup
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
     private fun applyPhase1WindowFlags() {
-        // New API (Android 8.1+) for showing over lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -116,8 +86,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 Log.w(TAG, "requestDismissKeyguard failed", e)
             }
         }
-
-        // Legacy flags — still required on Samsung One UI for reliable behavior
         @Suppress("DEPRECATION")
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
@@ -125,8 +93,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
-
-        // Hide system UI
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -143,7 +109,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
             "CalendarAlarm:OverlayWakeLock"
         ).apply {
             setReferenceCounted(false)
-            // Hold for slightly longer than Phase 1 duration (safety margin)
             acquire((prefs.phase1DurationSeconds * 1000L) + 2_000L)
         }
     }
@@ -153,23 +118,12 @@ class AlarmOverlayActivity : AppCompatActivity() {
         handler.postDelayed(phase2Runnable!!, prefs.phase1DurationSeconds * 1000L)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Phase 2: release the screen — let system manage it
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
     private fun enterPhase2() {
         Log.d(TAG, "Entering Phase 2 — releasing screen control to system")
-        // Drop the keep-on flag — system's display timeout will now apply normally
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Release SCREEN_BRIGHT wakelock if still held
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null
-        // The Activity stays alive. No finish(). User can come back to it later.
     }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // UI wiring
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     private fun loadEvent() {
         lifecycleScope.launch {
@@ -214,11 +168,9 @@ class AlarmOverlayActivity : AppCompatActivity() {
     private fun wireButtons() {
         binding.btnDismiss.setOnClickListener { dismissAlarm() }
         binding.btnEdit.setOnClickListener { openSourceCalendar() }
-
         binding.btnSnooze5.setOnClickListener { snooze(5L) }
         binding.btnSnooze10.setOnClickListener { snooze(10L) }
         binding.btnSnooze30.setOnClickListener { snooze(30L) }
-
         binding.btnSnoozeMore.setOnClickListener { showSnoozeMoreDialog() }
     }
 
@@ -262,7 +214,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
 
     private fun openSourceCalendar() {
         val e = event ?: return
-        // Try to open the event in its native calendar app first
         val externalEventId = e.externalId.substringBefore("_").toLongOrNull()
         if (externalEventId != null) {
             try {
@@ -281,7 +232,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 Log.w(TAG, "Failed to open native calendar event", ex)
             }
         }
-        // Fallback: open our app
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
@@ -290,25 +240,29 @@ class AlarmOverlayActivity : AppCompatActivity() {
         finishAndRemoveTask()
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Sound & vibration
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    private fun playAlarmSound() {
+    /**
+     * Plays the alarm sound ONCE (no looping) — like a notification ping.
+     */
+    private fun playAlarmSoundOnce() {
         try {
             val uri: Uri = prefs.defaultRingtoneUri
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
 
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(this@AlarmOverlayActivity, uri)
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                isLooping = true
+                isLooping = false
                 setOnPreparedListener { it.start() }
+                setOnCompletionListener {
+                    Log.d(TAG, "Alarm sound finished playing")
+                    try { it.release() } catch (_: Exception) {}
+                }
                 prepareAsync()
             }
         } catch (e: Exception) {
@@ -316,7 +270,10 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
     }
 
-    private fun startVibration() {
+    /**
+     * Short single vibration (~700ms).
+     */
+    private fun startShortVibration() {
         if (!prefs.vibrationEnabled) return
         try {
             vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -326,12 +283,11 @@ class AlarmOverlayActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 getSystemService(VIBRATOR_SERVICE) as Vibrator
             }
-            val pattern = longArrayOf(0, 700, 500, 700, 500)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+                vibrator?.vibrate(VibrationEffect.createOneShot(700L, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, 0)
+                vibrator?.vibrate(700L)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Vibration failed", e)
@@ -352,10 +308,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
         wakeLock = null
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Live clock
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
     private fun scheduleClockTicks() {
         clockTickRunnable = object : Runnable {
             override fun run() {
@@ -368,16 +320,13 @@ class AlarmOverlayActivity : AppCompatActivity() {
         handler.post(clockTickRunnable!!)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
     override fun onDestroy() {
         stopAlarmEffects()
         super.onDestroy()
     }
 
     override fun onBackPressed() {
-        // Disable back button — user must explicitly dismiss
-        // (no super.onBackPressed())
+        // Disabled
     }
 
     companion object {
