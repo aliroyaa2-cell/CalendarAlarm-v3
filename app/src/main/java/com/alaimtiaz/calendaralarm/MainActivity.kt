@@ -1,7 +1,10 @@
 package com.alaimtiaz.calendaralarm
 
+import android.content.ContentUris
 import android.content.Intent
 import android.os.Bundle
+import android.provider.CalendarContract
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -12,6 +15,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.alaimtiaz.calendaralarm.data.EventEntity
 import com.alaimtiaz.calendaralarm.databinding.ActivityMainBinding
 import com.alaimtiaz.calendaralarm.permissions.PermissionsManager
 import com.alaimtiaz.calendaralarm.service.CalendarSyncService
@@ -37,7 +41,9 @@ class MainActivity : AppCompatActivity() {
         permsMgr = PermissionsManager(applicationContext)
         prefs = PreferencesHelper(applicationContext)
 
-        adapter = EventsAdapter(this)
+        adapter = EventsAdapter(this) { event ->
+            openEventInCalendar(event)
+        }
         binding.recycler.layoutManager = LinearLayoutManager(this)
         binding.recycler.adapter = adapter
 
@@ -80,6 +86,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Open an event in the device's native calendar app.
+     * Uses the simple, trust-the-system approach proven to work in legacy versions.
+     */
+    private fun openEventInCalendar(event: EventEntity) {
+        val externalEventIdLong = event.externalId.substringBefore("_").toLongOrNull()
+
+        try {
+            if (externalEventIdLong != null) {
+                val uri = ContentUris.withAppendedId(
+                    CalendarContract.Events.CONTENT_URI,
+                    externalEventIdLong
+                )
+                startActivity(Intent(Intent.ACTION_VIEW).apply {
+                    data = uri
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                Log.d(TAG, "openEventInCalendar: launched ACTION_VIEW for event $externalEventIdLong")
+                return
+            }
+        } catch (ex: Exception) {
+            Log.w(TAG, "openEventInCalendar: ACTION_VIEW failed", ex)
+        }
+
+        // Fallback: open Google Calendar app's launcher
+        try {
+            val launcher = packageManager.getLaunchIntentForPackage("com.google.android.calendar")
+            if (launcher != null) {
+                launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(launcher)
+                Log.d(TAG, "openEventInCalendar: launched Google Calendar via launcher")
+                return
+            }
+        } catch (ex: Exception) {
+            Log.w(TAG, "openEventInCalendar: launcher fallback failed", ex)
+        }
+
+        Toast.makeText(this, "تعذّر فتح تطبيق التقويم", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
@@ -106,5 +152,9 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }
