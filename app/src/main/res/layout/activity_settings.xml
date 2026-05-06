@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:title="@string/title_settings"
+            app:titleTextColor="@color/on_primary"
+            app:navigationIconTint="@color/on_primary" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- ━━━━━ Permissions ━━━━━ -->
+            <TextView
+                style="@style/SectionHeader"
+                android:text="@string/settings_section_permissions" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerPermissions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:layout_marginBottom="20dp" />
+
+            <!-- ━━━━━ General ━━━━━ -->
+            <TextView
+                style="@style/SectionHeader"
+                android:text="@string/settings_section_general" />
+
+            <!-- Default ringtone -->
+            <LinearLayout
+                android:id="@+id/rowDefaultRingtone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/on_surface"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:text="@string/settings_default_ringtone" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/hint_text"
+                    android:textSize="13sp"
+                    android:text="@string/settings_default_ringtone_desc" />
+
+                <TextView
+                    android:id="@+id/tvCurrentRingtone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:text="—" />
+
+            </LinearLayout>
+
+            <View style="@style/HRule" />
+
+            <!-- Phase 1 duration -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/on_surface"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:text="@string/settings_phase1_duration" />
+
+                    <TextView
+                        android:id="@+id/tvPhase1Value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/primary"
+                        android:textSize="16sp"
+                        android:text="8 ث" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/hint_text"
+                    android:textSize="13sp"
+                    android:text="@string/settings_phase1_duration_desc" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/sliderPhase1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:valueFrom="3"
+                    android:valueTo="60"
+                    android:stepSize="1"
+                    android:value="8" />
+
+            </LinearLayout>
+
+            <View style="@style/HRule" />
+
+            <!-- Vibration -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="14dp"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/on_surface"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:text="@string/settings_vibration" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/hint_text"
+                        android:textSize="13sp"
+                        android:text="@string/settings_vibration_desc" />
+
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switchVibration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <!-- ━━━━━ Data ━━━━━ -->
+            <TextView
+                style="@style/SectionHeader"
+                android:layout_marginTop="24dp"
+                android:text="@string/settings_section_data" />
+
+            <TextView
+                android:id="@+id/tvEventsCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:textColor="@color/on_surface"
+                android:textSize="15sp"
+                android:text="@string/settings_events_count" />
+
+            <!-- ━━━━━ OEM ━━━━━ -->
+            <TextView
+                style="@style/SectionHeader"
+                android:layout_marginTop="24dp"
+                android:text="@string/settings_section_oem" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenBattery"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/settings_open_battery" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenAppInfo"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_open_app_info" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

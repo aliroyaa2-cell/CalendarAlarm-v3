@@ -1,0 +1,21 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.CalendarAlarm" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#90CAF9</item>
+        <item name="colorOnPrimary">#003258</item>
+        <item name="colorPrimaryContainer">#0D47A1</item>
+        <item name="colorOnPrimaryContainer">#D1E4FF</item>
+        <item name="android:colorBackground">#121212</item>
+        <item name="colorOnBackground">#E6E1E5</item>
+        <item name="colorSurface">#1E1E1E</item>
+        <item name="colorOnSurface">#E6E1E5</item>
+        <item name="android:statusBarColor" tools:targetApi="l">#0D47A1</item>
+    </style>
+
+    <style name="Theme.CalendarAlarm.Fullscreen" parent="Theme.CalendarAlarm">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/alarm_overlay_bg</item>
+    </style>
+
+</resources>

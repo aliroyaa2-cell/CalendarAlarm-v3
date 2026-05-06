@@ -1,0 +1,114 @@
+<resources>
+    <string name="app_name">CalendarAlarm</string>
+
+    <!-- Titles -->
+    <string name="title_main">الأحداث القادمة</string>
+    <string name="title_source_calendars">إدارة المصادر</string>
+    <string name="title_settings">الإعدادات</string>
+
+    <!-- Permissions -->
+    <string name="permissions_banner_title">⚠️ التطبيق يحتاج صلاحيات</string>
+    <string name="permissions_banner_subtitle">اضغط لإكمال الإعداد</string>
+    <string name="permissions_complete">جميع الصلاحيات مفعّلة</string>
+
+    <string name="perm_calendar">قراءة التقويم</string>
+    <string name="perm_calendar_desc">للوصول لأحداث Google Calendar و Samsung وغيرها</string>
+    <string name="perm_notifications">عرض الإشعارات</string>
+    <string name="perm_notifications_desc">لعرض إشعارات قبل المنبه</string>
+    <string name="perm_full_screen">المنبه بشاشة كاملة</string>
+    <string name="perm_full_screen_desc">لإيقاظ الشاشة عند المنبه</string>
+    <string name="perm_exact_alarm">المنبهات الدقيقة</string>
+    <string name="perm_exact_alarm_desc">لجدولة المنبهات في وقتها بالضبط</string>
+    <string name="perm_battery">الاستثناء من Battery Saver</string>
+    <string name="perm_battery_desc">لضمان عمل المنبهات بدون تأخير</string>
+    <string name="perm_audio">الوصول للنغمات</string>
+    <string name="perm_audio_desc">لاختيار نغمة المنبه</string>
+
+    <string name="perm_status_granted">✓ ممنوحة</string>
+    <string name="perm_status_denied">✗ ناقصة</string>
+    <string name="perm_action_grant">منح</string>
+    <string name="perm_action_open">فتح الإعدادات</string>
+
+    <!-- Main -->
+    <string name="empty_events">لا توجد أحداث قادمة</string>
+    <string name="empty_events_hint">اضغط "إدارة المصادر" لاختيار التقاويم</string>
+    <string name="menu_source_calendars">إدارة المصادر</string>
+    <string name="menu_settings">الإعدادات</string>
+    <string name="menu_sync_now">مزامنة الآن</string>
+
+    <!-- Source Calendars -->
+    <string name="source_header_hint">اختر التقاويم اللي تبغى تستورد منها أحداثها</string>
+    <string name="source_no_calendars">لا توجد تقاويم على الجهاز</string>
+    <string name="source_no_calendars_hint">تأكد من إضافة حساب Google أو Samsung وتفعيل مزامنة التقويم</string>
+    <string name="source_btn_refresh">تحديث القائمة</string>
+    <string name="source_btn_sync">مزامنة الآن</string>
+    <string name="source_btn_save">حفظ</string>
+    <string name="source_synced_at">آخر مزامنة: %1$s</string>
+    <string name="source_disable_warning">عند إيقاف تقويم → الأحداث منه تُحذف ومنبهاتها تُلغى</string>
+
+    <!-- Settings -->
+    <string name="settings_section_permissions">الصلاحيات</string>
+    <string name="settings_section_general">إعدادات عامة</string>
+    <string name="settings_section_data">البيانات</string>
+    <string name="settings_section_oem">إعدادات الجهاز</string>
+    <string name="settings_default_ringtone">النغمة الافتراضية</string>
+    <string name="settings_default_ringtone_desc">النغمة المستخدمة لكل المنبهات</string>
+    <string name="settings_phase1_duration">مدة إيقاظ الشاشة القسري</string>
+    <string name="settings_phase1_duration_desc">بعدها الشاشة تطفي مع timeout الجوال (افتراضي: 8 ثوان)</string>
+    <string name="settings_vibration">الاهتزاز</string>
+    <string name="settings_vibration_desc">اهتزاز مع المنبه</string>
+    <string name="settings_events_count">عدد الأحداث المخزّنة: %1$d</string>
+    <string name="settings_open_battery">إعدادات Battery (Samsung)</string>
+    <string name="settings_open_app_info">معلومات التطبيق</string>
+
+    <!-- Alarm Overlay -->
+    <string name="alarm_action_dismiss">إيقاف</string>
+    <string name="alarm_action_edit">فتح الحدث</string>
+    <string name="alarm_snooze_5">5 دقائق</string>
+    <string name="alarm_snooze_10">10 دقائق</string>
+    <string name="alarm_snooze_30">30 دقيقة</string>
+    <string name="alarm_snooze_more">تأجيل أطول</string>
+    <string name="alarm_snooze_2h">ساعتان</string>
+    <string name="alarm_snooze_4h">4 ساعات</string>
+    <string name="alarm_snooze_8h">8 ساعات</string>
+    <string name="alarm_snooze_1d">يوم كامل</string>
+    <string name="alarm_snooze_1w">أسبوع كامل</string>
+    <string name="alarm_snoozed_for">تم التأجيل %1$s</string>
+
+    <!-- Source labels -->
+    <string name="source_local">محلي</string>
+    <string name="source_google">Google</string>
+    <string name="source_samsung">Samsung</string>
+    <string name="source_outlook">Outlook</string>
+    <string name="source_other">آخر</string>
+
+    <!-- Notification channels -->
+    <string name="channel_alarm_name">منبهات الأحداث</string>
+    <string name="channel_alarm_desc">إشعارات منبهات أحداث التقويم</string>
+    <string name="channel_sync_name">مزامنة التقويم</string>
+    <string name="channel_sync_desc">إشعار خدمة المزامنة في الخلفية</string>
+
+    <!-- Sync service -->
+    <string name="sync_notification_title">CalendarAlarm يزامن التقاويم</string>
+    <string name="sync_notification_text">يراقب تغييرات الأحداث</string>
+
+    <!-- Common -->
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_ok">حسناً</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_open">فتح</string>
+    <string name="back">رجوع</string>
+
+    <!-- Time formats -->
+    <string name="time_today">اليوم</string>
+    <string name="time_tomorrow">غداً</string>
+    <string name="time_yesterday">أمس</string>
+
+    <!-- Toasts -->
+    <string name="toast_sync_started">بدأت المزامنة</string>
+    <string name="toast_sync_complete">اكتملت المزامنة (%1$d حدث)</string>
+    <string name="toast_settings_saved">تم الحفظ</string>
+    <string name="toast_no_calendars_enabled">لم تُختر أي تقاويم بعد</string>
+    <string name="toast_alarm_dismissed">تم إيقاف المنبه</string>
+
+</resources>

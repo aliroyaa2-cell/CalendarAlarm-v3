@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#0D47A1</color>
+    <color name="primary_light">#42A5F5</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#E3F2FD</color>
+    <color name="on_primary_container">#0D47A1</color>
+
+    <color name="secondary">#FF6F00</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Surface -->
+    <color name="background">#FAFAFA</color>
+    <color name="on_background">#1C1B1F</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_surface">#1C1B1F</color>
+    <color name="surface_variant">#F5F5F5</color>
+    <color name="on_surface_variant">#49454F</color>
+
+    <!-- Common -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+
+    <!-- Status -->
+    <color name="error">#D32F2F</color>
+    <color name="on_error">#FFFFFF</color>
+    <color name="warning">#F57C00</color>
+    <color name="success">#388E3C</color>
+
+    <!-- Source colors -->
+    <color name="source_google">#4285F4</color>
+    <color name="source_samsung">#1428A0</color>
+    <color name="source_outlook">#0078D4</color>
+    <color name="source_local">#757575</color>
+
+    <!-- Alarm overlay -->
+    <color name="alarm_overlay_bg">#1565C0</color>
+    <color name="alarm_overlay_text">#FFFFFF</color>
+    <color name="alarm_overlay_text_secondary">#E3F2FD</color>
+    <color name="alarm_overlay_button_bg">#FFFFFF</color>
+    <color name="alarm_overlay_button_text">#1565C0</color>
+    <color name="alarm_overlay_dismiss_bg">#D32F2F</color>
+
+    <!-- Banner -->
+    <color name="banner_warning_bg">#FFF3E0</color>
+    <color name="banner_warning_stroke">#F57C00</color>
+    <color name="banner_warning_text">#E65100</color>
+    <color name="banner_success_bg">#E8F5E9</color>
+    <color name="banner_success_text">#2E7D32</color>
+
+    <!-- Dividers / outlines -->
+    <color name="divider">#E0E0E0</color>
+    <color name="outline">#BDBDBD</color>
+    <color name="hint_text">#9E9E9E</color>
+</resources>

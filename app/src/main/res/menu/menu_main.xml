@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_sync_now"
+        android:title="@string/menu_sync_now"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_source_calendars"
+        android:title="@string/menu_source_calendars"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/menu_settings"
+        app:showAsAction="never" />
+
+</menu>
