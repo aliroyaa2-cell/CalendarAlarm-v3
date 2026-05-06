@@ -36,13 +36,14 @@
     <color name="source_outlook">#0078D4</color>
     <color name="source_local">#757575</color>
 
-    <!-- Alarm overlay -->
-    <color name="alarm_overlay_bg">#1565C0</color>
+    <!-- Alarm overlay - DARK MODE for high contrast on AMOLED -->
+    <color name="alarm_overlay_bg">#000000</color>
     <color name="alarm_overlay_text">#FFFFFF</color>
-    <color name="alarm_overlay_text_secondary">#E3F2FD</color>
-    <color name="alarm_overlay_button_bg">#FFFFFF</color>
-    <color name="alarm_overlay_button_text">#1565C0</color>
-    <color name="alarm_overlay_dismiss_bg">#D32F2F</color>
+    <color name="alarm_overlay_text_secondary">#BDBDBD</color>
+    <color name="alarm_overlay_accent">#64B5F6</color>
+    <color name="alarm_overlay_button_bg">#1C1C1C</color>
+    <color name="alarm_overlay_button_text">#FFFFFF</color>
+    <color name="alarm_overlay_dismiss_bg">#E53935</color>
 
     <!-- Banner -->
     <color name="banner_warning_bg">#FFF3E0</color>
