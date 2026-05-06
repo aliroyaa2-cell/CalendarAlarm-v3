@@ -27,6 +27,13 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE externalId = :externalId AND externalCalendarId = :calendarId LIMIT 1")
     suspend fun getByExternalId(externalId: String, calendarId: Long): EventEntity?
 
+    /**
+     * Lookup by externalId only — used when AlarmManager fires but the event
+     * was re-inserted with a new auto-generated id during sync.
+     */
+    @Query("SELECT * FROM events WHERE externalId = :externalId LIMIT 1")
+    suspend fun getByExternalIdAny(externalId: String): EventEntity?
+
     @Query("SELECT * FROM events WHERE startTime >= :now AND isAlarmEnabled = 1")
     suspend fun getActiveUpcoming(now: Long): List<EventEntity>
 
