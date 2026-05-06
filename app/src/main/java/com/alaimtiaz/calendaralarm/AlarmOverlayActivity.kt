@@ -1,6 +1,7 @@
 package com.alaimtiaz.calendaralarm
 
 import android.app.KeyguardManager
+import android.content.ContentUris
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -18,6 +19,7 @@ import android.provider.CalendarContract
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.alaimtiaz.calendaralarm.alarm.AlarmScheduler
@@ -212,37 +214,125 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Open the event in its native calendar app.
+     * Tries 3 strategies in order:
+     *   1. Direct event URI to Google Calendar (preferred)
+     *   2. Generic ACTION_VIEW with event URI (any calendar app picks it)
+     *   3. Fallback: open Google Calendar app at today's date
+     *   4. Final fallback: open our own MainActivity
+     */
     private fun openSourceCalendar() {
-        val e = event ?: return
+        val e = event ?: run {
+            Toast.makeText(this, "تعذّر تحميل بيانات الحدث", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val externalEventId = e.externalId.substringBefore("_").toLongOrNull()
+        Log.d(TAG, "openSourceCalendar: eventId=$eventId externalEventId=$externalEventId source=${e.source}")
+
+        // Strategy 1: Try Google Calendar with explicit package name
         if (externalEventId != null) {
             try {
-                val uri = android.content.ContentUris.withAppendedId(
+                val uri = ContentUris.withAppendedId(
                     CalendarContract.Events.CONTENT_URI,
                     externalEventId
                 )
-                val intent = Intent(Intent.ACTION_VIEW).setData(uri).apply {
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.google.android.calendar")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                    Log.d(TAG, "Opened event via Google Calendar (Strategy 1)")
+                    stopAlarmEffects()
+                    finishAndRemoveTask()
+                    return
+                } else {
+                    Log.w(TAG, "Strategy 1 failed: Google Calendar not installed or won't handle URI")
+                }
+            } catch (ex: Exception) {
+                Log.w(TAG, "Strategy 1 threw exception", ex)
+            }
+        }
+
+        // Strategy 2: Generic event URI — any calendar app
+        if (externalEventId != null) {
+            try {
+                val uri = ContentUris.withAppendedId(
+                    CalendarContract.Events.CONTENT_URI,
+                    externalEventId
+                )
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                    Log.d(TAG, "Opened event via generic ACTION_VIEW (Strategy 2)")
+                    stopAlarmEffects()
+                    finishAndRemoveTask()
+                    return
+                } else {
+                    Log.w(TAG, "Strategy 2 failed: no app handles event URI")
+                }
+            } catch (ex: Exception) {
+                Log.w(TAG, "Strategy 2 threw exception", ex)
+            }
+        }
+
+        // Strategy 3: Open Google Calendar app at today's date
+        try {
+            val todayBeginMillis = System.currentTimeMillis()
+            val timeUri = Uri.parse("content://com.android.calendar/time/$todayBeginMillis")
+            val intent = Intent(Intent.ACTION_VIEW, timeUri).apply {
+                setPackage("com.google.android.calendar")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (intent.resolveActivity(packageManager) != null) {
                 startActivity(intent)
+                Toast.makeText(this, "افتح الحدث من Google Calendar", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Opened Google Calendar at today (Strategy 3)")
                 stopAlarmEffects()
                 finishAndRemoveTask()
                 return
-            } catch (ex: Exception) {
-                Log.w(TAG, "Failed to open native calendar event", ex)
+            } else {
+                Log.w(TAG, "Strategy 3 failed: Google Calendar not installed")
             }
+        } catch (ex: Exception) {
+            Log.w(TAG, "Strategy 3 threw exception", ex)
         }
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
+        // Strategy 4: Try launching Google Calendar via package launcher
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.calendar")
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "افتح الحدث من Google Calendar", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Opened Google Calendar launcher (Strategy 4)")
+                stopAlarmEffects()
+                finishAndRemoveTask()
+                return
+            }
+        } catch (ex: Exception) {
+            Log.w(TAG, "Strategy 4 threw exception", ex)
         }
-        startActivity(intent)
-        stopAlarmEffects()
-        finishAndRemoveTask()
+
+        // Final fallback: our own app
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(intent)
+            Toast.makeText(this, "تعذّر فتح Google Calendar", Toast.LENGTH_LONG).show()
+            stopAlarmEffects()
+            finishAndRemoveTask()
+        } catch (ex: Exception) {
+            Log.e(TAG, "All open strategies failed", ex)
+            Toast.makeText(this, "تعذّر فتح أي تطبيق تقويم", Toast.LENGTH_LONG).show()
+        }
     }
 
-    /**
-     * Plays the alarm sound ONCE (no looping) — like a notification ping.
-     */
     private fun playAlarmSoundOnce() {
         try {
             val uri: Uri = prefs.defaultRingtoneUri
@@ -270,9 +360,6 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Short single vibration (~700ms).
-     */
     private fun startShortVibration() {
         if (!prefs.vibrationEnabled) return
         try {
