@@ -1,212 +1,216 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/alarm_overlay_bg"
-    android:padding="20dp">
+    android:fillViewport="true">
 
-    <!-- Top: live clock -->
     <LinearLayout
-        android:id="@+id/clockBlock"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="48dp">
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <TextView
-            android:id="@+id/tvClock"
+        <!-- Live clock -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="28dp">
+
+            <TextView
+                android:id="@+id/tvClock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/alarm_overlay_text"
+                android:textSize="48sp"
+                android:textStyle="normal"
+                android:fontFamily="sans-serif-light"
+                android:text="00:00:00" />
+
+            <TextView
+                android:id="@+id/tvClockAmpm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/alarm_overlay_text_secondary"
+                android:textSize="20sp"
+                android:text="ص" />
+
+        </LinearLayout>
+
+        <!-- Source label -->
+        <TextView
+            android:id="@+id/tvSourceName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:textColor="@color/alarm_overlay_accent"
+            android:textSize="14sp"
+            android:layout_marginBottom="12dp"
+            android:text="" />
+
+        <!-- Big title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
             android:textColor="@color/alarm_overlay_text"
-            android:textSize="56sp"
+            android:textSize="30sp"
             android:textStyle="bold"
-            android:fontFamily="sans-serif-light"
-            tools:ignore="MissingPrefix"
-            android:text="00:00:00" />
+            android:lineSpacingMultiplier="1.2"
+            android:layout_marginBottom="10dp"
+            android:text="" />
 
+        <!-- Event time -->
         <TextView
-            android:id="@+id/tvClockAmpm"
-            android:layout_width="wrap_content"
+            android:id="@+id/tvEventTime"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:gravity="center"
             android:textColor="@color/alarm_overlay_text_secondary"
-            android:textSize="22sp"
-            android:text="ص" />
+            android:textSize="16sp"
+            android:layout_marginBottom="16dp"
+            android:text="" />
 
-    </LinearLayout>
-
-    <!-- Source label -->
-    <TextView
-        android:id="@+id/tvSourceName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:textColor="@color/alarm_overlay_text_secondary"
-        android:textSize="16sp"
-        android:text=""
-        app:layout_constraintTop_toBottomOf="@id/clockBlock"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Big title -->
-    <TextView
-        android:id="@+id/tvTitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:gravity="center"
-        android:textColor="@color/alarm_overlay_text"
-        android:textSize="32sp"
-        android:textStyle="bold"
-        android:maxLines="3"
-        android:ellipsize="end"
-        android:text=""
-        app:layout_constraintTop_toBottomOf="@id/tvSourceName"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Event time -->
-    <TextView
-        android:id="@+id/tvEventTime"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center"
-        android:textColor="@color/alarm_overlay_text_secondary"
-        android:textSize="18sp"
-        android:text=""
-        app:layout_constraintTop_toBottomOf="@id/tvTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Description -->
-    <TextView
-        android:id="@+id/tvDescription"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:gravity="center"
-        android:textColor="@color/alarm_overlay_text"
-        android:textSize="16sp"
-        android:maxLines="4"
-        android:ellipsize="end"
-        android:visibility="gone"
-        android:text=""
-        app:layout_constraintTop_toBottomOf="@id/tvEventTime"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Location -->
-    <TextView
-        android:id="@+id/tvLocation"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:gravity="center"
-        android:textColor="@color/alarm_overlay_text_secondary"
-        android:textSize="14sp"
-        android:visibility="gone"
-        android:text=""
-        app:layout_constraintTop_toBottomOf="@id/tvDescription"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Snooze row -->
-    <LinearLayout
-        android:id="@+id/snoozeRow"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@id/btnSnoozeMore"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSnooze5"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
+        <!-- Description -->
+        <TextView
+            android:id="@+id/tvDescription"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
+            android:gravity="center"
             android:textColor="@color/alarm_overlay_text"
-            app:strokeColor="@color/alarm_overlay_text"
-            android:text="@string/alarm_snooze_5" />
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.4"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            android:text="" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSnooze10"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
+        <!-- Location -->
+        <TextView
+            android:id="@+id/tvLocation"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:textColor="@color/alarm_overlay_text"
-            app:strokeColor="@color/alarm_overlay_text"
-            android:text="@string/alarm_snooze_10" />
+            android:gravity="center"
+            android:textColor="@color/alarm_overlay_text_secondary"
+            android:textSize="13sp"
+            android:layout_marginBottom="32dp"
+            android:visibility="gone"
+            android:text="" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSnooze30"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
+        <!-- Spacer -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="20dp" />
+
+        <!-- Snooze grid 2x2 — Row 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/alarm_overlay_text"
-            app:strokeColor="@color/alarm_overlay_text"
-            android:text="@string/alarm_snooze_30" />
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
 
-    </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze5"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="56dp"
+                android:layout_marginEnd="6dp"
+                android:textColor="@color/alarm_overlay_text"
+                android:textSize="15sp"
+                app:strokeColor="@color/alarm_overlay_text"
+                app:strokeWidth="1dp"
+                app:cornerRadius="10dp"
+                android:text="@string/alarm_snooze_5" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSnoozeMore"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:textColor="@color/alarm_overlay_text_secondary"
-        android:text="@string/alarm_snooze_more"
-        app:layout_constraintBottom_toTopOf="@id/actionRow"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze10"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="56dp"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/alarm_overlay_text"
+                android:textSize="15sp"
+                app:strokeColor="@color/alarm_overlay_text"
+                app:strokeWidth="1dp"
+                app:cornerRadius="10dp"
+                android:text="@string/alarm_snooze_10" />
 
-    <!-- Action row: Edit + Dismiss -->
-    <LinearLayout
-        android:id="@+id/actionRow"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="40dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        </LinearLayout>
 
+        <!-- Snooze grid 2x2 — Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnooze30"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="56dp"
+                android:layout_marginEnd="6dp"
+                android:textColor="@color/alarm_overlay_text"
+                android:textSize="15sp"
+                app:strokeColor="@color/alarm_overlay_text"
+                app:strokeWidth="1dp"
+                app:cornerRadius="10dp"
+                android:text="@string/alarm_snooze_30" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSnoozeMore"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="56dp"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/alarm_overlay_text"
+                android:textSize="15sp"
+                app:strokeColor="@color/alarm_overlay_text"
+                app:strokeWidth="1dp"
+                app:cornerRadius="10dp"
+                android:text="@string/alarm_snooze_more" />
+
+        </LinearLayout>
+
+        <!-- Open event - full width -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnEdit"
             style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_weight="1"
+            android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:layout_marginEnd="12dp"
-            android:textSize="16sp"
+            android:layout_marginBottom="10dp"
             android:textColor="@color/alarm_overlay_text"
+            android:textSize="16sp"
             app:strokeColor="@color/alarm_overlay_text"
+            app:strokeWidth="1dp"
+            app:cornerRadius="10dp"
             android:text="@string/alarm_action_edit" />
 
+        <!-- Dismiss - full width red -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDismiss"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="60dp"
+            android:layout_width="match_parent"
+            android:layout_height="68dp"
+            android:textColor="@color/white"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/white"
             app:backgroundTint="@color/alarm_overlay_dismiss_bg"
+            app:cornerRadius="10dp"
             android:text="@string/alarm_action_dismiss" />
 
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
