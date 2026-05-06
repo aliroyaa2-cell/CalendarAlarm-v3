@@ -15,9 +15,8 @@ import kotlinx.coroutines.launch
 /**
  * Receives the AlarmManager broadcast and launches AlarmOverlayActivity.
  *
- * We use a partial WakeLock to give AlarmOverlayActivity time to start
- * before the system goes back to sleep — onCreate of the Activity will
- * then take over with its own SCREEN_BRIGHT_WAKE_LOCK.
+ * We forward BOTH the row id AND the externalId so AlarmOverlayActivity
+ * can recover the event even if Room re-inserted it with a new id during sync.
  */
 class EventAlarmReceiver : BroadcastReceiver() {
 
@@ -25,12 +24,14 @@ class EventAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val eventId = intent.getLongExtra(AlarmScheduler.EXTRA_EVENT_ID, -1L)
-        if (eventId == -1L) {
-            Log.w(TAG, "Received alarm with no event id, ignoring")
+        val externalId = intent.getStringExtra(AlarmScheduler.EXTRA_EXTERNAL_ID)
+
+        if (eventId == -1L && externalId.isNullOrBlank()) {
+            Log.w(TAG, "Received alarm with no event id or externalId, ignoring")
             return
         }
 
-        Log.d(TAG, "Alarm fired for event $eventId")
+        Log.d(TAG, "Alarm fired: eventId=$eventId externalId=$externalId")
 
         // Acquire a short partial wakelock to ensure the Activity launches
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -43,6 +44,9 @@ class EventAlarmReceiver : BroadcastReceiver() {
         // Launch the full-screen alarm activity
         val overlayIntent = Intent(context, AlarmOverlayActivity::class.java).apply {
             putExtra(AlarmOverlayActivity.EXTRA_EVENT_ID, eventId)
+            if (!externalId.isNullOrBlank()) {
+                putExtra(AlarmOverlayActivity.EXTRA_EXTERNAL_ID, externalId)
+            }
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -59,9 +63,11 @@ class EventAlarmReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         scope.launch {
             try {
-                AppDatabase.getInstance(context.applicationContext)
-                    .pendingAlarmDao()
-                    .deleteByEventId(eventId)
+                if (eventId > 0L) {
+                    AppDatabase.getInstance(context.applicationContext)
+                        .pendingAlarmDao()
+                        .deleteByEventId(eventId)
+                }
             } finally {
                 if (wl.isHeld) wl.release()
                 pendingResult.finish()
