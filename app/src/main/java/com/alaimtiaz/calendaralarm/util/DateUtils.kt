@@ -10,8 +10,7 @@ import java.util.Locale
 object DateUtils {
 
     private val timeFormat = SimpleDateFormat("h:mm a", Locale("ar"))
-    private val dateFormat = SimpleDateFormat("EEEE d MMMM", Locale("ar"))
-    private val fullFormat = SimpleDateFormat("EEEE d MMMM، h:mm a", Locale("ar"))
+    private val dateFormat = SimpleDateFormat("EEEE d MMMM yyyy", Locale("ar"))
     private val fullFormatWithYear = SimpleDateFormat("EEEE d MMMM yyyy، h:mm a", Locale("ar"))
     private val syncFormat = SimpleDateFormat("d MMM، h:mm a", Locale("ar"))
 
@@ -34,9 +33,7 @@ object DateUtils {
             sameDay(cal, today) -> "${context.getString(R.string.time_today)} • ${formatTime(millis)}"
             sameDay(cal, tomorrow) -> "${context.getString(R.string.time_tomorrow)} • ${formatTime(millis)}"
             sameDay(cal, yesterday) -> "${context.getString(R.string.time_yesterday)} • ${formatTime(millis)}"
-            // Same year — no need to show year
-            cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) -> fullFormat.format(Date(millis))
-            // Different year — include the year explicitly
+            // All other events — always include the year
             else -> fullFormatWithYear.format(Date(millis))
         }
     }
