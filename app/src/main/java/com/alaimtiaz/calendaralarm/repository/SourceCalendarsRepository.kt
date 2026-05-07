@@ -15,8 +15,9 @@ import kotlinx.coroutines.flow.Flow
  * Reads calendar sources and events from the system Calendar Provider
  * and bridges them into our local Room database.
  *
- * Default sync window: 25 years backward + 2 years forward.
- * This effectively covers all archived events from a long-term Google Calendar user.
+ * Default sync window: 30 years backward + 10 years forward.
+ * Backward depth ensures users with long Google Calendar history (since 2002+)
+ * see all archived events. Forward depth covers long-term planning.
  */
 class SourceCalendarsRepository(
     private val context: Context,
@@ -56,7 +57,6 @@ class SourceCalendarsRepository(
         }
 
         sourceDao.insertOrReplaceAll(merged)
-        // Remove rows that are no longer present (account/calendar removed from device)
         sourceDao.deleteRemoved(merged.map { it.id })
         return merged
     }
@@ -101,12 +101,12 @@ class SourceCalendarsRepository(
     /**
      * Sync events from all enabled source calendars.
      *
-     * @param daysBackward — number of days BEFORE today to sync (default 9125 = 25 years).
-     * @param daysForward  — number of days AFTER today to sync (default 730 = 2 years).
+     * @param daysBackward — number of days BEFORE today to sync (default 10950 = 30 years).
+     * @param daysForward  — number of days AFTER today to sync (default 3650 = 10 years).
      */
     suspend fun syncEnabledCalendars(
-        daysBackward: Int = 9125,
-        daysForward: Int = 730
+        daysBackward: Int = 10950,
+        daysForward: Int = 3650
     ): SyncResult {
         if (!hasCalendarPermission()) return SyncResult(0, 0)
 
