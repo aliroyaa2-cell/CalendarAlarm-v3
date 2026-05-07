@@ -4,12 +4,18 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.alaimtiaz.calendaralarm.alarm.MissedAlarmChecker
+import java.util.concurrent.TimeUnit
 
 class CalendarAlarmApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        scheduleHeartbeat()
     }
 
     private fun createNotificationChannels() {
@@ -43,6 +49,29 @@ class CalendarAlarmApplication : Application() {
             setShowBadge(false)
         }
         nm.createNotificationChannel(syncChannel)
+    }
+
+    /**
+     * Schedule the MissedAlarmChecker as a periodic 15-minute heartbeat.
+     * This is Layer 3 of our alarm reliability strategy:
+     *  1. AlarmManager.setAlarmClock — primary mechanism
+     *  2. Foreground sync service — keeps app alive
+     *  3. WorkManager heartbeat — catches missed alarms when 1 & 2 fail
+     *
+     * 15 minutes is Android's minimum periodic interval. WorkManager survives
+     * Samsung's aggressive task killer better than AlarmManager because it
+     * uses JobScheduler under the hood.
+     */
+    private fun scheduleHeartbeat() {
+        val request = PeriodicWorkRequestBuilder<MissedAlarmChecker>(
+            15L, TimeUnit.MINUTES
+        ).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            MissedAlarmChecker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
     }
 
     companion object {
