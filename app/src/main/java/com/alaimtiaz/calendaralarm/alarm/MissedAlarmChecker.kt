@@ -46,7 +46,7 @@ class MissedAlarmChecker(
             Log.w(TAG, "Found ${missed.size} missed alarm(s), firing fallback")
 
             for (alarm in missed) {
-                fireMissedAlarm(context, alarm.eventId)
+                fireMissedAlarm(context, db, alarm.eventId)
                 // Remove pending entry so it doesn't fire again
                 db.pendingAlarmDao().deleteByEventId(alarm.eventId)
             }
@@ -62,7 +62,14 @@ class MissedAlarmChecker(
      * Launch the full-screen alarm activity for a missed alarm.
      * Mirrors the launch logic in EventAlarmReceiver.
      */
-    private fun fireMissedAlarm(context: Context, eventId: Long) {
+    private suspend fun fireMissedAlarm(context: Context, db: AppDatabase, eventId: Long) {
+        // Look up event to get externalId (in case row id was rewritten by sync)
+        val externalId = try {
+            db.eventDao().getById(eventId)?.externalId
+        } catch (e: Exception) {
+            null
+        }
+
         // Acquire a short wakelock to ensure the Activity launches
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val wl = pm.newWakeLock(
@@ -72,9 +79,6 @@ class MissedAlarmChecker(
         wl.acquire(15_000L)
 
         try {
-            // Look up event to get externalId (in case row id was rewritten by sync)
-            val externalId = runCatchingExternalId(context, eventId)
-
             val overlayIntent = Intent(context, AlarmOverlayActivity::class.java).apply {
                 putExtra(AlarmOverlayActivity.EXTRA_EVENT_ID, eventId)
                 if (!externalId.isNullOrBlank()) {
@@ -92,17 +96,6 @@ class MissedAlarmChecker(
             Log.e(TAG, "Failed to launch fallback alarm for event $eventId", e)
         } finally {
             if (wl.isHeld) wl.release()
-        }
-    }
-
-    private suspend fun runCatchingExternalId(context: Context, eventId: Long): String? {
-        return try {
-            AppDatabase.getInstance(context)
-                .eventDao()
-                .getById(eventId)
-                ?.externalId
-        } catch (e: Exception) {
-            null
         }
     }
 
