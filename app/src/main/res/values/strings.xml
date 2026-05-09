@@ -94,10 +94,15 @@
     <string name="channel_alarm_desc">إشعارات منبهات أحداث التقويم</string>
     <string name="channel_sync_name">مزامنة التقويم</string>
     <string name="channel_sync_desc">إشعار خدمة المزامنة في الخلفية</string>
+    <string name="channel_missed_name">تذكيرات المنبهات النشطة</string>
+    <string name="channel_missed_desc">إشعار دائم لكل منبه نشط لم تتم معالجته بعد</string>
 
     <!-- Sync service -->
     <string name="sync_notification_title">CalendarAlarm يزامن التقاويم</string>
     <string name="sync_notification_text">يراقب تغييرات الأحداث</string>
+
+    <!-- Active alarm notification -->
+    <string name="active_alarm_text">منبه نشط — اضغط للفتح</string>
 
     <!-- Common -->
     <string name="action_cancel">إلغاء</string>
