@@ -49,6 +49,23 @@ class CalendarAlarmApplication : Application() {
             setShowBadge(false)
         }
         nm.createNotificationChannel(syncChannel)
+
+        // Missed alarms channel: DEFAULT priority, silent, but shows badge on icon.
+        // Used for the persistent ongoing notification that survives until user
+        // interacts with the alarm (Snooze or Dismiss).
+        val missedChannel = NotificationChannel(
+            CHANNEL_MISSED_ALARMS,
+            getString(R.string.channel_missed_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = getString(R.string.channel_missed_desc)
+            enableVibration(false)
+            enableLights(false)
+            setBypassDnd(false)
+            setShowBadge(true)
+            setSound(null, null)
+        }
+        nm.createNotificationChannel(missedChannel)
     }
 
     /**
@@ -77,5 +94,6 @@ class CalendarAlarmApplication : Application() {
     companion object {
         const val CHANNEL_ALARM = "alarm_channel"
         const val CHANNEL_SYNC = "sync_channel"
+        const val CHANNEL_MISSED_ALARMS = "missed_alarms_channel"
     }
 }
