@@ -77,9 +77,9 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Samsung Calendar search button
+        // Open CalendarArchive (the wide-archive companion app)
         binding.btnSearchSamsung.setOnClickListener {
-            openSamsungCalendar()
+            openCalendarArchive()
         }
 
         // Menu button (3 dots)
@@ -186,46 +186,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Open any installed calendar app at today's date.
-     * Uses the generic CalendarContract URI which any calendar app can handle —
-     * Android prompts the user to pick one (Samsung, Google, etc.) the first time
-     * and remembers the choice.
+     * Open the CalendarArchive companion app for wide-range archive search.
+     * If the app is not installed, show a clear message to the user.
      */
-    private fun openSamsungCalendar() {
-        val now = System.currentTimeMillis()
-        val timeUri = Uri.parse("content://com.android.calendar/time/$now")
-
+    private fun openCalendarArchive() {
+        val archivePackage = "com.alaimtiaz.calendararchive"
         try {
-            val intent = Intent(Intent.ACTION_VIEW, timeUri).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val launcher = packageManager.getLaunchIntentForPackage(archivePackage)
+            if (launcher != null) {
+                launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(launcher)
+                Log.d(TAG, "openCalendarArchive: launched $archivePackage")
+                return
             }
-            startActivity(intent)
-            Log.d(TAG, "openSamsungCalendar: launched ACTION_VIEW on time URI")
-            return
+            // App not installed
+            Toast.makeText(
+                this,
+                "تطبيق أرشيف التقويم غير مثبّت — ثبّته أولاً",
+                Toast.LENGTH_LONG
+            ).show()
         } catch (ex: Exception) {
-            Log.w(TAG, "openSamsungCalendar: time URI failed", ex)
+            Log.w(TAG, "openCalendarArchive: failed", ex)
+            Toast.makeText(this, "تعذّر فتح أرشيف التقويم", Toast.LENGTH_SHORT).show()
         }
-
-        // Fallback: any launchable calendar app (try Samsung first, then Google)
-        val candidates = listOf(
-            "com.samsung.android.calendar",
-            "com.google.android.calendar"
-        )
-        for (pkg in candidates) {
-            try {
-                val launcher = packageManager.getLaunchIntentForPackage(pkg)
-                if (launcher != null) {
-                    launcher.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    startActivity(launcher)
-                    Log.d(TAG, "openSamsungCalendar: launched $pkg via launcher")
-                    return
-                }
-            } catch (ex: Exception) {
-                Log.w(TAG, "Launcher fallback for $pkg failed", ex)
-            }
-        }
-
-        Toast.makeText(this, "تعذّر فتح تطبيق التقويم", Toast.LENGTH_SHORT).show()
     }
 
     companion object {
