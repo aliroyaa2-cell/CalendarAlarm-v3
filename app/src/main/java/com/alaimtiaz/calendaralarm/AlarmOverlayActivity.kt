@@ -1,7 +1,10 @@
 package com.alaimtiaz.calendaralarm
 
 import android.app.KeyguardManager
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentUris
+import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -21,6 +24,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.lifecycleScope
 import com.alaimtiaz.calendaralarm.alarm.AlarmScheduler
 import com.alaimtiaz.calendaralarm.data.AppDatabase
@@ -158,6 +162,9 @@ class AlarmOverlayActivity : AppCompatActivity() {
             }
             event = e
             renderEvent(e)
+            // Show the persistent notification after the event has loaded so we
+            // can use the real event title (or fallback if null).
+            showPersistentNotification(e)
         }
     }
 
@@ -226,6 +233,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
             withContext(Dispatchers.IO) {
                 AlarmScheduler(applicationContext).scheduleEvent(e, triggerOverride = triggerAt)
             }
+            dismissPersistentNotification()
             stopAlarmEffects()
             finishAndRemoveTask()
         }
@@ -238,6 +246,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
                     AlarmScheduler(applicationContext).cancelEvent(eventId, externalIdHint)
                 }
             }
+            dismissPersistentNotification()
             stopAlarmEffects()
             finishAndRemoveTask()
         }
@@ -246,6 +255,9 @@ class AlarmOverlayActivity : AppCompatActivity() {
     /**
      * Open the event in its native calendar app.
      * Simple, trust-the-system approach (matches what worked in previous versions).
+     *
+     * Note: We do NOT dismiss the persistent notification here — the user may
+     * want to view in Google Calendar then come back and snooze/dismiss.
      */
     private fun openInCalendar() {
         val e = event
@@ -287,6 +299,79 @@ class AlarmOverlayActivity : AppCompatActivity() {
         }
 
         Toast.makeText(this, "تعذّر فتح تطبيق التقويم", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Show a persistent (ongoing) notification in the notification shade.
+     * This notification:
+     *  - cannot be swiped away by the user
+     *  - shows a badge on the app icon
+     *  - re-launches AlarmOverlayActivity when tapped
+     *  - is removed only when user interacts with the alarm (Snooze or Dismiss)
+     *
+     * Purpose: ensure the user never misses an alarm even if AlarmOverlayActivity
+     * gets killed by Samsung's task killer or overridden by Samsung Alarm clock.
+     */
+    private fun showPersistentNotification(e: EventEntity?) {
+        val notificationId = if (eventId > 0L) eventId.toInt() else NOTIFICATION_ID_FALLBACK
+        val title = e?.title?.takeIf { it.isNotBlank() } ?: "منبه نشط"
+
+        // Tapping the notification re-opens this same alarm screen
+        val openIntent = Intent(this, AlarmOverlayActivity::class.java).apply {
+            putExtra(EXTRA_EVENT_ID, eventId)
+            externalIdHint?.let { putExtra(EXTRA_EXTERNAL_ID, it) }
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
+        }
+        val openPi = PendingIntent.getActivity(
+            this,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(
+            this,
+            CalendarAlarmApplication.CHANNEL_MISSED_ALARMS
+        )
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(getString(R.string.active_alarm_text))
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(openPi)
+            .setNumber(1)
+            .build()
+
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(notificationId, notification)
+            Log.d(TAG, "Persistent notification posted for eventId=$eventId")
+        } catch (ex: Exception) {
+            Log.e(TAG, "Failed to post persistent notification", ex)
+        }
+    }
+
+    /**
+     * Remove the persistent notification associated with this alarm.
+     * Called only when the user has truly interacted (Snooze or Dismiss).
+     */
+    private fun dismissPersistentNotification() {
+        val notificationId = if (eventId > 0L) eventId.toInt() else NOTIFICATION_ID_FALLBACK
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(notificationId)
+            Log.d(TAG, "Persistent notification dismissed for eventId=$eventId")
+        } catch (ex: Exception) {
+            Log.w(TAG, "Failed to dismiss persistent notification", ex)
+        }
     }
 
     private fun playAlarmSoundOnce() {
@@ -376,5 +461,7 @@ class AlarmOverlayActivity : AppCompatActivity() {
         private const val TAG = "AlarmOverlay"
         const val EXTRA_EVENT_ID = "extra_event_id"
         const val EXTRA_EXTERNAL_ID = "extra_external_id"
+        // Used only when eventId is negative (which shouldn't happen, but be safe)
+        private const val NOTIFICATION_ID_FALLBACK = 99999
     }
 }
