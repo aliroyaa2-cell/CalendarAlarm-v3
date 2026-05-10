@@ -17,9 +17,9 @@ import com.alaimtiaz.calendaralarm.repository.EventsRepository
  * Schedules and cancels alarms via AlarmManager.
  * Uses setAlarmClock() for max precision (bypasses Doze on Samsung One UI).
  *
- * We pass BOTH the row id AND the externalId so AlarmOverlayActivity can
- * recover the event even if Room re-inserts it with a new auto-generated id
- * during a sync.
+ * Build #44 changes:
+ * - rescheduleAll() now respects snoozed alarms (doesn't override their triggerAt with original startTime)
+ * - rescheduleAll() returns count of missed alarms so BootReceiver can show a notification
  */
 class AlarmScheduler(private val context: Context) {
 
@@ -87,14 +87,60 @@ class AlarmScheduler(private val context: Context) {
         Log.d(TAG, "Canceled alarm for event $eventId")
     }
 
-    suspend fun rescheduleAll(): Int {
-        alarmsRepo.deleteExpired()
-        val events = eventsRepo.getActiveUpcoming()
-        var count = 0
-        for (e in events) {
-            if (scheduleEvent(e)) count++
+    /**
+     * Result of rescheduleAll() — used by BootReceiver to decide if it needs to show
+     * a "missed alarms" notification.
+     */
+    data class RescheduleResult(
+        val rescheduledCount: Int,
+        val missedCount: Int
+    )
+
+    /**
+     * Re-schedules all alarms after device boot.
+     *
+     * Build #44 fixes:
+     * 1. Snoozed alarms keep their snoozed triggerAt (don't fall back to original startTime).
+     * 2. Missed alarms (triggerAt < now) are counted before deletion so BootReceiver can notify.
+     * 3. Events without an existing pending alarm get freshly scheduled.
+     */
+    suspend fun rescheduleAll(): RescheduleResult {
+        val now = System.currentTimeMillis()
+        val allPending = alarmsRepo.getAll()
+        var rescheduledCount = 0
+        var missedCount = 0
+
+        // Pass 1: handle existing pending alarms — preserve snoozed times
+        for (p in allPending) {
+            if (p.triggerAt > now) {
+                // Future alarm (snoozed or not) — reschedule with the saved triggerAt
+                val event = eventsRepo.getById(p.eventId)
+                if (event != null && event.isAlarmEnabled) {
+                    val ok = scheduleEvent(event, triggerOverride = p.triggerAt)
+                    if (ok) rescheduledCount++
+                    Log.d(TAG, "Reschedule preserved alarm event=${p.eventId} at ${p.triggerAt} snoozed=${p.isSnoozed}")
+                }
+            } else {
+                // Past alarm — count as missed
+                missedCount++
+                Log.d(TAG, "Missed alarm event=${p.eventId} fired at ${p.triggerAt}")
+            }
         }
-        return count
+
+        // Clean up the missed entries from DB
+        alarmsRepo.deleteExpired()
+
+        // Pass 2: schedule fresh alarms for upcoming events that don't have a pending row yet
+        val events = eventsRepo.getActiveUpcoming()
+        for (e in events) {
+            val existing = alarmsRepo.getByEventId(e.id)
+            if (existing == null) {
+                if (scheduleEvent(e)) rescheduledCount++
+            }
+        }
+
+        Log.d(TAG, "rescheduleAll done — rescheduled=$rescheduledCount missed=$missedCount")
+        return RescheduleResult(rescheduledCount, missedCount)
     }
 
     suspend fun cancelAll() {
